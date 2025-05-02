@@ -16,6 +16,10 @@ G='\033[0;32m'; R='\033[0;31m'; Y='\033[0;33m'; N='\033[0m';
 error_handler() { echo -e "${N}An error occured at line $1.${N}"; exit 1; }
 trap 'error_handler $LINENO' ERR && set -e
 
+# Cluster nodes
+controller_name='vm1'; controller_ip='192.168.76.33';
+worker_name='vm2'; worker_ip='192.168.76.34';
+
 #===============================================================
 
 # verify necessary packages are installed
@@ -37,9 +41,9 @@ git checkout tags/23.08
 # configure hosts inventory    ( vm1 == slurm controller ,  vm2 == slurm gpu node )
 mkdir -p /opt/deepops/config
 cp /opt/deepops/config.example/inventory /opt/deepops/config/inventory
-sed -i 's/^\[slurm-master\]/\[slurm-master\]\nvm1 ansible_host=192.168.76.33/' /opt/deepops/config/inventory  # controller
-sed -i 's/^\[slurm-node\]/\[slurm-node\]\nvm2 ansible_host=192.168.76.34/' /opt/deepops/config/inventory      # worker
-echo -e "ansible_user=root\nansible_ssh_private_key_file=/root/.ssh/id_rsa\nregistry_setup=false" >> /opt/deepops/config/inventory
+sed -i "s/^\[slurm-master\]/\[slurm-master\]\n$controller_name ansible_host=$controller_ip/" /opt/deepops/config/inventory
+sed -i "s/^\[slurm-node\]/\[slurm-node\]\n$worker_name ansible_host=$worker_ip/" /opt/deepops/config/inventory
+#echo -e "ansible_user=root\nansible_ssh_private_key_file=/root/.ssh/id_rsa\nregistry_setup=false" >> /opt/deepops/config/inventory
 
 # install nvidia drivers on the gpu worker node
 ansible-galaxy install -r roles/requirements.yml
@@ -58,20 +62,20 @@ ssh vm2 nvidia-smi && echo "" && sleep 5
 
 echo -e "${Y}Verifying cloud-init is removed... (please wait)${N}"
 apt remove --purge cloud-init* -y &>/dev/null  #&&  rm -rf /etc/cloud 2>/dev/null
-ssh vm1 apt remove --purge cloud-init* -y &>/dev/null  #&&  rm -rf /etc/cloud 2>/dev/null
-ssh vm2 apt remove --purge cloud-init* -y &>/dev/null  #&&  rm -rf /etc/cloud 2>/dev/null
+ssh $controller_ip apt remove --purge cloud-init* -y &>/dev/null  #&&  rm -rf /etc/cloud 2>/dev/null
+ssh $worker_ip apt remove --purge cloud-init* -y &>/dev/null  #&&  rm -rf /etc/cloud 2>/dev/null
 
 echo -e "\n${Y}Installing pip3 on all cluster nodes... (please wait)${N}"
-ssh vm1 apt install -y python3-pip #>/dev/null 2>&1
-ssh vm2 apt install -y python3-pip #>/dev/null 2>&1
+ssh $controller_ip apt install -y python3-pip #>/dev/null 2>&1
+ssh $worker_ip apt install -y python3-pip #>/dev/null 2>&1
 
 echo -e "\n${Y}Installing easybuild on all cluster nodes... (please wait)${N}"
-ssh vm1 pip3 install easybuild #>/dev/null 2>&1
-ssh vm2 pip3 install easybuild #>/dev/null 2>&1
+ssh $controller_ip pip3 install easybuild #>/dev/null 2>&1
+ssh $worker_ip pip3 install easybuild #>/dev/null 2>&1
 
 echo -e "\n${Y}Installing docker on all cluster nodes... (please wait)${N}"
-ssh vm1 apt install -y docker.io >/dev/null 2>&1
-ssh vm2 apt install -y docker.io >/dev/null 2>&1
+ssh $controller_ip apt install -y docker.io >/dev/null 2>&1
+ssh $worker_ip apt install -y docker.io >/dev/null 2>&1
 
 # fix deprecated syntax in playbooks & roles
 echo -e "${Y}\nFixing yaml playbooks and roles...${N}"

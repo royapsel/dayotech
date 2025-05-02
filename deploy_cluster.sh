@@ -20,6 +20,10 @@ trap 'error_handler $LINENO' ERR && set -e
 controller_name='vm1'; controller_ip='192.168.76.33';
 worker_name='vm2'; worker_ip='192.168.76.34';
 
+# Test nodes accessibility
+# ping test
+# ssh test
+
 #===============================================================
 
 # verify necessary packages are installed

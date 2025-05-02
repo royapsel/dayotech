@@ -56,16 +56,22 @@ ssh vm2 nvidia-smi && echo "" && sleep 5
 #===============================================================================================================#
 ## trouble starts here
 
-# delete cloud-init entirely if installed (cloud-init can make issues with slurm as they share resources)
-echo -e "\n${Y}Verifying cloud-init is removed... (please wait)${N}"
-apt remove --purge cloud-init* -y &>/dev/null  &&  rm -rf /etc/cloud 2>/dev/null
-ssh vm1 apt remove --purge cloud-init* -y &>/dev/null  &&  rm -rf #/etc/cloud 2>/dev/null
-ssh vm2 apt remove --purge cloud-init* -y &>/dev/null  &&  rm -rf #/etc/cloud 2>/dev/null
+echo -e "${Y}Verifying cloud-init is removed... (please wait)${N}"
+apt remove --purge cloud-init* -y &>/dev/null  #&&  rm -rf /etc/cloud 2>/dev/null
+ssh vm1 apt remove --purge cloud-init* -y &>/dev/null  #&&  rm -rf /etc/cloud 2>/dev/null
+ssh vm2 apt remove --purge cloud-init* -y &>/dev/null  #&&  rm -rf /etc/cloud 2>/dev/null
 
-# install docker on the destination vm
-echo -e "\n${Y}Verifying docker is installed on all cluster nodes... (please wait)${N}"
-ssh vm1 apt install -y docker.io
-ssh vm2 apt install -y docker.io
+echo -e "\n${Y}Installing pip3 on all cluster nodes... (please wait)${N}"
+ssh vm1 apt install -y python3-pip #>/dev/null 2>&1
+ssh vm2 apt install -y python3-pip #>/dev/null 2>&1
+
+echo -e "\n${Y}Installing easybuild on all cluster nodes... (please wait)${N}"
+ssh vm1 pip3 install easybuild #>/dev/null 2>&1
+ssh vm2 pip3 install easybuild #>/dev/null 2>&1
+
+echo -e "\n${Y}Installing docker on all cluster nodes... (please wait)${N}"
+ssh vm1 apt install -y docker.io >/dev/null 2>&1
+ssh vm2 apt install -y docker.io >/dev/null 2>&1
 
 # fix deprecated syntax in playbooks & roles
 echo -e "${Y}\nFixing yaml playbooks and roles...${N}"
@@ -109,9 +115,9 @@ echo -e "\n${Y}Installing Slurm cluster...${N}"
 ansible-playbook playbooks/slurm-cluster.yml \
 	-l slurm-cluster \
 	-e slurm_enable_nfs_client_nodes=false \
-	-e slurm_install_lmod=false \
-	-e slurm_enable_singularity=false \
+	-e slurm_install_lmod=true \
+	-e slurm_enable_singularity=true \
 	-e slurm_install_enroot=true \
 	-e slurm_install_pyxis=true
 
-
+test "$?" == "0" && echo -e "${G}Done.${N}" 

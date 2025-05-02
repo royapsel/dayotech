@@ -86,6 +86,9 @@ sed -i '/container.registry/s/^/#/' playbooks/slurm-cluster.yml
 # remove cloud-init checks from cluster settings
 sed -i '/disable.*cloud/s/^/#/' playbooks/slurm-cluster.yml
 
+# remove hpcsdk setup from cluster settings (replacing -e slurm_install_hpcsdk=false)
+sed -i '/^-.*nvidia-hpc-sdk.yml/,/slurm_install_hpcsdk/ s/^/#/' playbooks/slurm-cluster.yml
+
 
 ### set config/config.yml file here ###
 
@@ -95,8 +98,7 @@ ansible-playbook playbooks/slurm-cluster.yml \
 	-l slurm-cluster \
 	-e slurm_enable_nfs_client_nodes=false \
 	-e slurm_install_lmod=false \
-	-e slurm_install_hpcsdk=false \
-	#-e slurm_install_monitoring=false \
+	-e slurm_enable_monitoring=false \
 	-e slurm_install_enroot=true \
 	-e slurm_install_pyxis=true
 

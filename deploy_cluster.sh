@@ -13,16 +13,24 @@
 G='\033[0;32m'; R='\033[0;31m'; Y='\033[0;33m'; N='\033[0m';
 
 # Error handling (trap errors and print message)
-error_handler() { echo -e "${N}An error occured at line $1.${N}"; exit 1; }
+error_handler() { echo -e "An error occured at line $1."; exit 1; }
 trap 'error_handler $LINENO' ERR && set -e
 
-# Cluster nodes
+# Verify running as root (required)
+test ! "$UID" == 0 && { echo -e "Must run as root."; exit 1; }
+
+# Cluster nodes (set manually)
 controller_name='vm1'; controller_ip='192.168.76.33';
 worker_name='vm2'; worker_ip='192.168.76.34';
 
 # Test nodes accessibility
-# ping test
+ping -c 1 $controller_ip >/dev/null 2>&1 || { echo -e "Cannot ping host $controller_ip, check manually."; exit 1; }
+ping -c 1 $worker_ip >/dev/null 2>&1 || { echo -e "Cannot ping host $worker_ip, check manually."; exit 1; }
+
 # ssh test
+test "$(ssh $controller_ip "echo \$UID")" == "0" || { echo -e "Check ssh connection to root@$controller_ip"; exit 1; }
+test "$(ssh $worker_ip "echo \$UID")" == "0" || { echo -e "Check ssh connection to root@$worker_ip"; exit 1; }
+
 
 #===============================================================
 
@@ -128,4 +136,9 @@ ansible-playbook playbooks/slurm-cluster.yml \
 	-e slurm_install_enroot=true \
 	-e slurm_install_pyxis=true
 
-test "$?" == "0" && echo -e "${G}Done.${N}" 
+#test "$?" == "0" && echo -e "${G}Done.${N}" 
+if test "$?" =="0"; then
+	echo -e "${G}\nShowing output for:${N}  \"srun -N 1 -G 1 nvidia-smi\""
+	ssh $controller_ip srun -N 1 -G 1 nvidia-smi
+fi
+

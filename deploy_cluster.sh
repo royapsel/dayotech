@@ -39,7 +39,7 @@ mkdir -p /opt/deepops/config
 cp /opt/deepops/config.example/inventory /opt/deepops/config/inventory
 sed -i 's/^\[slurm-master\]/\[slurm-master\]\nvm1 ansible_host=192.168.76.33/' /opt/deepops/config/inventory  # controller
 sed -i 's/^\[slurm-node\]/\[slurm-node\]\nvm2 ansible_host=192.168.76.34/' /opt/deepops/config/inventory      # worker
-#echo -e "ansible_user=root\nansible_ssh_private_key_file=/root/.ssh/id_rsa\nregistry_setup=false" >> /opt/deepops/config/inventory
+echo -e "ansible_user=root\nansible_ssh_private_key_file=/root/.ssh/id_rsa\nregistry_setup=false" >> /opt/deepops/config/inventory
 
 # install nvidia drivers on the gpu worker node
 ansible-galaxy install -r roles/requirements.yml
@@ -67,7 +67,7 @@ echo -e "\n${Y}Verifying docker is installed on all cluster nodes... (please wai
 ssh vm1 apt install -y docker.io
 ssh vm2 apt install -y docker.io
 
-# fix broken playbooks & roles deprecated syntax
+# fix deprecated syntax in playbooks & roles
 echo -e "${Y}\nFixing yaml playbooks and roles...${N}"
 sed -i 's/^- include:/- import_playbook:/' playbooks/slurm-cluster.yml
 sed -i 's/^- include:/- import_playbook:/' playbooks/container/*.yml
@@ -78,7 +78,7 @@ sed -i 's/include:/include_tasks:/' roles/nvidia_dcgm/tasks/*.yml
 sed -i 's/include:/include_tasks:/' roles/slurm/tasks/*.yml
 sed -i 's/include:/include_tasks:/' roles/ood-wrapper/tasks/*.yml
 
-# fix broken docker playbook and cluster settings
+# fix broken docker playbook settings
 sed -i '/^[[:space:]]*roles:/,/^[[:space:]]*environment:/ s/^/# /' playbooks/container/docker.yml
 sed -i '/[[:space:]]*tasks:/,/^$/ s/^/#/' playbooks/container/docker.yml
 sed -i '/container.registry/s/^/#/' playbooks/slurm-cluster.yml
@@ -89,8 +89,20 @@ sed -i '/disable.*cloud/s/^/#/' playbooks/slurm-cluster.yml
 # remove hpcsdk setup from cluster settings (replacing -e slurm_install_hpcsdk=false)
 sed -i '/^-.*nvidia-hpc-sdk.yml/,/slurm_install_hpcsdk/ s/^/#/' playbooks/slurm-cluster.yml
 
+# remove monitoring setup from cluster settings (replacing -e slurm_enable_monitoring=false)
+sed -i '/^-.*prometheus/,/slurm_enable_monitoring/ s/^/#/' playbooks/slurm-cluster.yml
+sed -i '/^-.*grafana/,/slurm_enable_monitoring/ s/^/#/' playbooks/slurm-cluster.yml
+sed -i '/^-.*alertmanager/,/slurm_enable_monitoring/ s/^/#/' playbooks/slurm-cluster.yml
+sed -i '/^-.*nvidia-dcgm-exporter/,/slurm_enable_monitoring/ s/^/#/' playbooks/slurm-cluster.yml
 
-### set config/config.yml file here ###
+# remove open ondemand tool from cluster settings (replacing -e install_open_ondemand=false)
+sed -i '/^-.*open-ondemand/,/install_open_ondemand/ s/^/#/' playbooks/slurm-cluster.yml
+
+# remove gpu clocking feature in cluster settings (replacing -e allow_user_set_gpu_clocks=false)
+sed -i '/^-.*gpu-clocks/,/allow_user_set_gpu_clocks/ s/^/#/' playbooks/slurm-cluster.yml
+
+
+### set config/config.yml file here (or use -e flags) ###
 
 
 echo -e "\n${Y}Installing Slurm cluster...${N}"
@@ -98,7 +110,7 @@ ansible-playbook playbooks/slurm-cluster.yml \
 	-l slurm-cluster \
 	-e slurm_enable_nfs_client_nodes=false \
 	-e slurm_install_lmod=false \
-	-e slurm_enable_monitoring=false \
+	-e slurm_enable_singularity=false \
 	-e slurm_install_enroot=true \
 	-e slurm_install_pyxis=true
 

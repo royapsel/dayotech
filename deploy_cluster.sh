@@ -23,11 +23,11 @@ test ! "$UID" == 0 && { echo -e "Must run as root."; exit 1; }
 controller_name='vm1'; controller_ip='192.168.76.33';
 worker_name='vm2'; worker_ip='192.168.76.34';
 
-# Test nodes accessibility
+# Cluster ping response test
 ping -c 1 $controller_ip >/dev/null 2>&1 || { echo -e "Cannot ping host $controller_ip, check manually."; exit 1; }
 ping -c 1 $worker_ip >/dev/null 2>&1 || { echo -e "Cannot ping host $worker_ip, check manually."; exit 1; }
 
-# ssh test
+# Cluster ssh access test
 test "$(ssh $controller_ip "echo \$UID")" == "0" || { echo -e "Check ssh connection to root@$controller_ip"; exit 1; }
 test "$(ssh $worker_ip "echo \$UID")" == "0" || { echo -e "Check ssh connection to root@$worker_ip"; exit 1; }
 
@@ -77,13 +77,17 @@ apt remove --purge cloud-init* -y &>/dev/null  #&&  rm -rf /etc/cloud 2>/dev/nul
 ssh $controller_ip apt remove --purge cloud-init* -y &>/dev/null  #&&  rm -rf /etc/cloud 2>/dev/null
 ssh $worker_ip apt remove --purge cloud-init* -y &>/dev/null  #&&  rm -rf /etc/cloud 2>/dev/null
 
-echo -e "\n${Y}Installing pip3 on all cluster nodes... (please wait)${N}"
+echo -e "\n${Y}Installing pip3 on cluster nodes... (please wait)${N}"
 ssh $controller_ip apt install -y python3-pip #>/dev/null 2>&1
 ssh $worker_ip apt install -y python3-pip #>/dev/null 2>&1
 
-echo -e "\n${Y}Installing easybuild on all cluster nodes... (please wait)${N}"
-ssh $controller_ip pip3 install easybuild #>/dev/null 2>&1
-ssh $worker_ip pip3 install easybuild #>/dev/null 2>&1
+#echo -e "${Y}Installing required packages on cluster nodes${N}"
+#ssh $controller_ip python3-venv git gcc g++ make tcl lua-posix liblua5.3-dev curl
+#ssh $worker_ip python3-venv git gcc g++ make tcl lua-posix liblua5.3-dev curl
+
+#echo -e "${Y}Installing easybuild cluster nodes... (please wait)${N}"
+#ssh $controller_ip
+#ssh $worker_ip 
 
 echo -e "\n${Y}Installing docker on all cluster nodes... (please wait)${N}"
 ssh $controller_ip apt install -y docker.io >/dev/null 2>&1
@@ -131,14 +135,15 @@ echo -e "\n${Y}Installing Slurm cluster...${N}"
 ansible-playbook playbooks/slurm-cluster.yml \
 	-l slurm-cluster \
 	-e slurm_enable_nfs_client_nodes=false \
-	-e slurm_install_lmod=true \
-	-e slurm_enable_singularity=true \
+	-e slurm_install_lmod=false \
+	-e slurm_enable_singularity=false \
 	-e slurm_install_enroot=true \
 	-e slurm_install_pyxis=true
+sleep 5
 
 #test "$?" == "0" && echo -e "${G}Done.${N}" 
-if test "$?" =="0"; then
-	echo -e "${G}\nShowing output for:${N}  \"srun -N 1 -G 1 nvidia-smi\""
-	ssh $controller_ip srun -N 1 -G 1 nvidia-smi
-fi
+echo -e "${Y}\nTesting:${N} \"srun -N 1 -G 1 nvidia-smi\"\n"
+ssh $controller_ip srun -N 1 -G 1 nvidia-smi
+echo -e "\n${G}Done.${N}"
+
 

@@ -20,8 +20,21 @@ trap 'error_handler $LINENO' ERR && set -e
 test ! "$UID" == 0 && { echo -e "Must run as root."; exit 1; }
 
 # Cluster nodes (set manually)
-controller_name='vm1'; controller_ip='192.168.76.33';
-worker_name='vm2'; worker_ip='192.168.76.34';
+controller_name='CHSLM01';	worker_name='CHGPU01'; 
+controller_ip='192.168.76.33'; 	worker_ip='192.168.76.34';
+
+echo -e "\nConfirm the following configuration:"
+echo "-----------------------------------------"
+echo " Controller Hostname  : $controller_name "
+echo " Controler IP         : $controller_ip   "
+echo " Worker Hostname      : $worker_name     "
+echo " Worker IP            : $worker_ip       "
+echo "-----------------------------------------"
+read -p "Continue? [y/n]: " confirm 
+[[ "$confirm" =~ ^[Yy]$ ]] || exit 1
+
+echo "we are here, sort of"
+exit
 
 # Cluster ping response test
 ping -c 1 $controller_ip >/dev/null 2>&1 || { echo -e "Cannot ping host $controller_ip, check manually."; exit 1; }
@@ -53,7 +66,7 @@ git clone https://github.com/NVIDIA/deepops.git 2>/dev/null || true
 cd /opt/deepops
 git checkout tags/23.08
 
-# configure hosts inventory    ( vm1 == slurm controller ,  vm2 == slurm gpu node )
+# configure hosts inventory    ( 1st vm slurm controller ,  2nd vm slurm gpu node )
 mkdir -p /opt/deepops/config
 cp /opt/deepops/config.example/inventory /opt/deepops/config/inventory
 sed -i "s/^\[slurm-master\]/\[slurm-master\]\n$controller_name ansible_host=$controller_ip/" /opt/deepops/config/inventory

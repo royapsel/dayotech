@@ -31,6 +31,9 @@ ping -c 1 $worker_ip >/dev/null 2>&1 || { echo -e "Cannot ping host $worker_ip, 
 test "$(ssh $controller_ip "echo \$UID")" == "0" || { echo -e "Check ssh connection to root@$controller_ip"; exit 1; }
 test "$(ssh $worker_ip "echo \$UID")" == "0" || { echo -e "Check ssh connection to root@$worker_ip"; exit 1; }
 
+# Initial vars
+base_dir="`dirname $(realpath $0)`"
+install_file="install_easybuild_lmod.sh"
 
 #===============================================================
 
@@ -85,9 +88,9 @@ ssh $worker_ip apt install -y python3-pip #>/dev/null 2>&1
 #ssh $controller_ip python3-venv git gcc g++ make tcl lua-posix liblua5.3-dev curl
 #ssh $worker_ip python3-venv git gcc g++ make tcl lua-posix liblua5.3-dev curl
 
-#echo -e "${Y}Installing easybuild cluster nodes... (please wait)${N}"
-#ssh $controller_ip
-#ssh $worker_ip 
+echo -e "${Y}Installing easybuild & lmod on cluster nodes... (please wait)${N}"
+ssh $controller_ip bash < $base_dir/$install_file
+ssh $worker_ip bash < $base_dir/$install_file
 
 echo -e "\n${Y}Installing docker on all cluster nodes... (please wait)${N}"
 ssh $controller_ip apt install -y docker.io >/dev/null 2>&1
@@ -127,6 +130,9 @@ sed -i '/^-.*open-ondemand/,/install_open_ondemand/ s/^/#/' playbooks/slurm-clus
 # remove gpu clocking feature in cluster settings (replacing -e allow_user_set_gpu_clocks=false)
 sed -i '/^-.*gpu-clocks/,/allow_user_set_gpu_clocks/ s/^/#/' playbooks/slurm-cluster.yml
 
+# remove lmod feature in cluster settings (replacing -e slurm_install_lmod=false)
+sed -i '/^-.*lmod.yml/,/slurm_install_lmod/ s/^/#/' playbooks/slurm-cluster.yml
+
 
 ### set config/config.yml file here (or use -e flags) ###
 
@@ -135,8 +141,7 @@ echo -e "\n${Y}Installing Slurm cluster...${N}"
 ansible-playbook playbooks/slurm-cluster.yml \
 	-l slurm-cluster \
 	-e slurm_enable_nfs_client_nodes=false \
-	-e slurm_install_lmod=false \
-	-e slurm_enable_singularity=false \
+	-e slurm_enable_singularity=yes \
 	-e slurm_install_enroot=true \
 	-e slurm_install_pyxis=true
 sleep 5

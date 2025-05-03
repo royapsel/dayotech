@@ -33,9 +33,6 @@ echo "-----------------------------------------"
 read -p "Continue? [y/n]: " confirm 
 [[ "$confirm" =~ ^[Yy]$ ]] || exit 1
 
-echo "we are here, sort of"
-exit
-
 # Cluster ping response test
 ping -c 1 $controller_ip >/dev/null 2>&1 || { echo -e "Cannot ping host $controller_ip, check manually."; exit 1; }
 ping -c 1 $worker_ip >/dev/null 2>&1 || { echo -e "Cannot ping host $worker_ip, check manually."; exit 1; }

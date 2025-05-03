@@ -75,7 +75,7 @@ ansible-galaxy install -r roles/requirements.yml
 ansible-playbook -i config/inventory playbooks/nvidia-software/nvidia-driver.yml
 
 echo -e "\n${Y}NVIDIA driver details on GPU worker node (nvidia-smi)${N}\n"
-ssh vm2 nvidia-smi && echo "" && sleep 5
+ssh $controller_ip nvidia-smi && echo "" && sleep 5
 
 
 #echo -e "exiting before slurm cluster installation"

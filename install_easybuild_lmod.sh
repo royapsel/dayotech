@@ -1,9 +1,5 @@
 #!/bin/bash
 
-
-################
-## easybuild
-
 setup_easybuild_git() {
 	# install required dependencies & remove lmod if installed
 	apt install -y python3-venv git gcc g++ make tcl lua-posix liblua5.2-dev curl lmod-
@@ -33,12 +29,9 @@ setup_easybuild_git() {
 }
 
 
-################
-## lmod
-
 setup_lmod_git() {
 	# install required packages
-	apt install -y tcl tcl-dev lua5.2 liblua5.2-0 liblua5.2-dev
+	apt install -y tcl tcl-dev lua-posix lua5.2 liblua5.2-0 liblua5.2-dev lmod-
 
 	# clone and install lmod (verion 8+)
 	git clone https://github.com/TACC/Lmod.git /opt/lmod
@@ -56,11 +49,13 @@ setup_lmod_git() {
 }
 
 
-## Install easybuild
-#setup_easybuild_git
-pip3 install easybuild
-
-## Install lmod
-setup_lmod_git
 
 
+{
+	## Install easybuild
+	pip3 install easybuild   # pip package
+	#setup_easybuild_git     # git repo
+
+	## Install lmod
+	setup_lmod_git    # git repo
+}

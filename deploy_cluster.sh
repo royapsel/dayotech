@@ -9,8 +9,8 @@
 #
 #===============================================================
 
-# Color codes: (green, red, yellow, none)
-G='\033[0;32m'; R='\033[0;31m'; Y='\033[0;33m'; N='\033[0m';
+# Color codes: (white, green, red, yellow, none)
+W='\033[1;37m'; G='\033[0;32m'; R='\033[0;31m'; Y='\033[0;33m'; N='\033[0m';
 
 # Error handling (trap errors and print message)
 error_handler() { echo -e "An error occured at line $1."; exit 1; }
@@ -19,33 +19,44 @@ trap 'error_handler $LINENO' ERR && set -e
 # Verify running as root (required)
 test ! "$UID" == 0 && { echo -e "Must run as root."; exit 1; }
 
+# Variables (initial)
+export base_dir="`dirname $(realpath $0)`"
+export install_file="install_easybuild_lmod.sh"
+export soft_dir='/opt'
+
 # Cluster nodes (set manually)
-controller_name='CHSLM01';	worker_name='CHGPU01'; 
-controller_ip='192.168.76.33'; 	worker_ip='192.168.76.34';
+export controller_name='CHSLM01'
+export controller_ip='192.168.76.33'
+
+export worker_name='CHGPU01'
+export worker_ip='192.168.76.34'
 
 echo -e "\nConfirm the following configuration:"
-echo "-----------------------------------------"
-echo " Controller Hostname  : $controller_name "
-echo " Controler IP         : $controller_ip   "
-echo " Worker Hostname      : $worker_name     "
-echo " Worker IP            : $worker_ip       "
-echo "-----------------------------------------"
-read -p "Continue? [y/n]: " confirm 
-[[ "$confirm" =~ ^[Yy]$ ]] || exit 1
+echo -e "-----------------------------------------"
+echo -e "Controller Hostname      : $controller_name"
+echo -e "Controler IP             : $controller_ip  "
+echo -e "Worker Hostname          : $worker_name    "
+echo -e "Worker IP                : $worker_ip      "
+echo -e "Software Install Dir     : $soft_dir       "
+echo -e "-----------------------------------------"
+read -p "Continue? [y/n]: " confirm  &&  [[ "$confirm" =~ ^[Yy]$ ]] || exit 1
+
 
 # Cluster ping response test
 ping -c 1 $controller_ip >/dev/null 2>&1 || { echo -e "Cannot ping host $controller_ip, check manually."; exit 1; }
 ping -c 1 $worker_ip >/dev/null 2>&1 || { echo -e "Cannot ping host $worker_ip, check manually."; exit 1; }
 
-# Cluster ssh access test
+# Cluster root ssh access test
 test "$(ssh $controller_ip "echo \$UID")" == "0" || { echo -e "Check ssh connection to root@$controller_ip"; exit 1; }
 test "$(ssh $worker_ip "echo \$UID")" == "0" || { echo -e "Check ssh connection to root@$worker_ip"; exit 1; }
 
-# Initial vars
-base_dir="`dirname $(realpath $0)`"
-install_file="install_easybuild_lmod.sh"
+# Confirm nodes running on Ubunuu 22.04
+#ssh $controller_ip "grep -q 'Ubuntu 22.04' /etc/os-release" || { echo -e "Only 'Ubuntu 22.04' nodes are supported."; exit 1; }
+#ssh $worker_ip "grep -q 'Ubuntu 22.04' /etc/os-release" || { echo -e "Only 'Ubuntu 22.04' nodes are supported."; exit 1; }
+
 
 #===============================================================
+
 
 # verify necessary packages are installed
 echo -e "${Y}Verifying required packages are installed...${N}"
@@ -58,24 +69,28 @@ sudo pip3 install --upgrade ansible >/dev/null 2>&1 || { echo -e "${R}Error: ans
 
 # cloning nvidia deepops repo
 echo -e "${Y}Cloning deepops repository...${N}"
-cd /opt
+cd $soft_dir
 git clone https://github.com/NVIDIA/deepops.git 2>/dev/null || true
-cd /opt/deepops
+cd $soft_dir/deepops
 git checkout tags/23.08
 
 # configure hosts inventory    ( 1st vm slurm controller ,  2nd vm slurm gpu node )
-mkdir -p /opt/deepops/config
-cp /opt/deepops/config.example/inventory /opt/deepops/config/inventory
-sed -i "s/^\[slurm-master\]/\[slurm-master\]\n$controller_name ansible_host=$controller_ip/" /opt/deepops/config/inventory
-sed -i "s/^\[slurm-node\]/\[slurm-node\]\n$worker_name ansible_host=$worker_ip/" /opt/deepops/config/inventory
-#echo -e "ansible_user=root\nansible_ssh_private_key_file=/root/.ssh/id_rsa\nregistry_setup=false" >> /opt/deepops/config/inventory
+mkdir -p $soft_dir/deepops/config
+cp $soft_dir/deepops/config.example/inventory $soft_dir/deepops/config/inventory
+sed -i "s/^\[slurm-master\]/\[slurm-master\]\n$controller_name ansible_host=$controller_ip/" $soft_dir/deepops/config/inventory
+sed -i "s/^\[slurm-node\]/\[slurm-node\]\n$worker_name ansible_host=$worker_ip/" $soft_dir/deepops/config/inventory
+#echo -e "ansible_user=root\nansible_ssh_private_key_file=/root/.ssh/id_rsa\nregistry_setup=false" >> $soft_dir/deepops/config/inventory
 
 # install nvidia drivers on the gpu worker node
 ansible-galaxy install -r roles/requirements.yml
 ansible-playbook -i config/inventory playbooks/nvidia-software/nvidia-driver.yml
 
-echo -e "\n${Y}NVIDIA driver details on GPU worker node (nvidia-smi)${N}\n"
-ssh $controller_ip nvidia-smi && echo "" && sleep 5
+echo -e "\n${Y}Checking NVIDIA driver details on worker node (nvidia-smi)${N}"
+ssh $controller_ip type nvidia-smi 2>/dev/null \
+	&& ssh $controller_ip nvidia-smi \
+	|| echo -e "No GPU on worker node (continuing anyway)"
+	
+echo "" && sleep 4
 
 
 #echo -e "exiting before slurm cluster installation"
@@ -151,14 +166,24 @@ echo -e "\n${Y}Installing Slurm cluster...${N}"
 ansible-playbook playbooks/slurm-cluster.yml \
 	-l slurm-cluster \
 	-e slurm_enable_nfs_client_nodes=false \
-	-e slurm_enable_singularity=yes \
+	-e slurm_enable_singularity=false \
 	-e slurm_install_enroot=true \
 	-e slurm_install_pyxis=true
-sleep 5
+sleep 4
 
-#test "$?" == "0" && echo -e "${G}Done.${N}" 
-echo -e "${Y}\nTesting:${N} \"srun -N 1 -G 1 nvidia-smi\"\n"
-ssh $controller_ip srun -N 1 -G 1 nvidia-smi
+
+if ssh $controller_ip type nvidia-smi &>/dev/null; then
+	echo -e "${Y}\nTesting:${N} \"srun -N 1 -G 1 nvidia-smi\"\n"
+	ssh $controller_ip srun -N 1 -G 1 nvidia-smi
+fi
+
+echo -e "\n${Y}Slurm Cluster Settings${N}"
+echo "Cluster Name:      $(ssh $controller_ip scontrol show config | grep -i '^clustername' | awk '{print $3}')"
+echo "Slurm Version:     $(ssh $controller_ip scontrol show config | grep -i '^slurm_version' | awk '{print $3}')"
+echo "Scheduler Type:    $(ssh $controller_ip scontrol show config | grep -i '^schedulertype' | awk '{print $3}')"
+echo "Config File:       $(ssh $controller_ip scontrol show config | grep -i '^slurm_conf' | awk '{print $3}')"
+echo -e "\nCluster Nodes:"
+ssh $controller_ip "sinfo -N -h -o '  - %N (%T, %c cores, %m MB, %G)'"
+echo "------------------------------------------"
 echo -e "\n${G}Done.${N}"
-
 

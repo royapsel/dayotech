@@ -20,17 +20,17 @@ trap 'error_handler $LINENO' ERR && set -e
 test ! "$UID" == 0 && { echo -e "Must run as root."; exit 1; }
 
 # Variables (initial)
+soft_dir='/opt'
 base_dir="`dirname $(realpath $0)`"
 install_file="install_easybuild_lmod.sh"
-ansible_callback="community.general.dense"
-soft_dir='/opt'
+ansible_callback="dense"
+ansible_whitelist="timer,profile_tasks,log_plays"
 
 # Cluster nodes (set manually)
 controller_name='vm1'
-controller_ip='192.168.100.130'
-
+controller_ip='192.168.100.242'
 worker_name='vm2'
-worker_ip='192.168.100.200'
+worker_ip='192.168.100.188'
 
 echo -e "\n${Y}Confirm the following configuration:${N}"
 echo -e "─────────────────────────────────────────"
@@ -55,7 +55,8 @@ test "$(ssh $worker_ip "echo \$UID")" == "0" || { echo -e "Check ssh connection 
 ssh $controller_ip "grep -q 'Ubuntu 22.04' /etc/os-release" || { echo -e "Only 'Ubuntu 22.04' nodes are supported."; exit 1; }
 ssh $worker_ip "grep -q 'Ubuntu 22.04' /etc/os-release" || { echo -e "Only 'Ubuntu 22.04' nodes are supported."; exit 1; }
 
-#===============================================================
+#===============================================================================================================#
+
 
 # verify required packages are installed
 echo -e "${Y}Verifying required packages are installed...${N}"
@@ -78,7 +79,7 @@ sed -i "s/^\[slurm-node\]/\[slurm-node\]\n$worker_name ansible_host=$worker_ip/"
 #echo -e "ansible_user=root\nansible_ssh_private_key_file=/root/.ssh/id_rsa\nregistry_setup=false" >> $soft_dir/deepops/config/inventory
 
 # install nvidia drivers on the gpu worker node
-ansible-galaxy install -r roles/requirements.yml
+ansible-galaxy install -r roles/requirements.yml >/dev/null
 ANSIBLE_STDOUT_CALLBACK=$ansible_callback ansible-playbook -i config/inventory playbooks/nvidia-software/nvidia-driver.yml 2>/dev/null
 
 echo -e "\n${Y}Checking NVIDIA driver details on worker node (nvidia-smi)${N}"
@@ -154,14 +155,18 @@ sed -i '/^-.*gpu-clocks/,/allow_user_set_gpu_clocks/ s/^/#/' playbooks/slurm-clu
 # remove lmod feature in cluster settings (replacing -e slurm_install_lmod=false)
 sed -i '/^-.*lmod.yml/,/slurm_install_lmod/ s/^/#/' playbooks/slurm-cluster.yml
 
+# remove nfs feature (replacing -e slurm_enable_nfs_client_nodes)
+sed -i '/-.*nfs-server.yml/,/slurm_enable_nfs_client_nodes/ s/^/#/' playbooks/slurm-cluster.yml
+
 
 ### set config/config.yml file here (or use -e flags) ###
 
 
-echo -e "\n${Y}Installing Slurm cluster...${N}"
-ANSIBLE_STDOUT_CALLBACK=$ansible_callback ansible-playbook playbooks/slurm-cluster.yml \
+echo -e "\n${Y}Installing Slurm Cluster (can take a while...)${N}"
+ANSIBLE_STDOUT_CALLBACK=$ansible_callback \
+ANSIBLE_CALLBACK_WHITELIST=$ansible_whitelist \
+ansible-playbook playbooks/slurm-cluster.yml \
 	-l slurm-cluster \
-	-e slurm_enable_nfs_client_nodes=false \
 	-e slurm_enable_singularity=false \
 	-e slurm_install_enroot=true \
 	-e slurm_install_pyxis=true 2>/dev/null

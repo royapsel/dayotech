@@ -20,25 +20,26 @@ trap 'error_handler $LINENO' ERR && set -e
 test ! "$UID" == 0 && { echo -e "Must run as root."; exit 1; }
 
 # Variables (initial)
-export base_dir="`dirname $(realpath $0)`"
-export install_file="install_easybuild_lmod.sh"
-export soft_dir='/opt'
+base_dir="`dirname $(realpath $0)`"
+install_file="install_easybuild_lmod.sh"
+ansible_callback="community.general.dense"
+soft_dir='/opt'
 
 # Cluster nodes (set manually)
-export controller_name='CHSLM01'
-export controller_ip='192.168.76.33'
+controller_name='vm1'
+controller_ip='192.168.100.130'
 
-export worker_name='CHGPU01'
-export worker_ip='192.168.76.34'
+worker_name='vm2'
+worker_ip='192.168.100.200'
 
-echo -e "\nConfirm the following configuration:"
-echo -e "-----------------------------------------"
-echo -e "Controller Hostname      : $controller_name"
-echo -e "Controler IP             : $controller_ip  "
-echo -e "Worker Hostname          : $worker_name    "
-echo -e "Worker IP                : $worker_ip      "
-echo -e "Software Install Dir     : $soft_dir       "
-echo -e "-----------------------------------------"
+echo -e "\n${Y}Confirm the following configuration:${N}"
+echo -e "─────────────────────────────────────────"
+echo -e "Controller Hostname:      $controller_name"
+echo -e "Controler IP:             $controller_ip  "
+echo -e "Worker Hostname:          $worker_name    "
+echo -e "Worker IP:                $worker_ip      "
+echo -e "Software Install Dir:     $soft_dir       "
+echo -e "─────────────────────────────────────────"
 read -p "Continue? [y/n]: " confirm  &&  [[ "$confirm" =~ ^[Yy]$ ]] || exit 1
 
 
@@ -51,17 +52,14 @@ test "$(ssh $controller_ip "echo \$UID")" == "0" || { echo -e "Check ssh connect
 test "$(ssh $worker_ip "echo \$UID")" == "0" || { echo -e "Check ssh connection to root@$worker_ip"; exit 1; }
 
 # Confirm nodes running on Ubunuu 22.04
-#ssh $controller_ip "grep -q 'Ubuntu 22.04' /etc/os-release" || { echo -e "Only 'Ubuntu 22.04' nodes are supported."; exit 1; }
-#ssh $worker_ip "grep -q 'Ubuntu 22.04' /etc/os-release" || { echo -e "Only 'Ubuntu 22.04' nodes are supported."; exit 1; }
-
+ssh $controller_ip "grep -q 'Ubuntu 22.04' /etc/os-release" || { echo -e "Only 'Ubuntu 22.04' nodes are supported."; exit 1; }
+ssh $worker_ip "grep -q 'Ubuntu 22.04' /etc/os-release" || { echo -e "Only 'Ubuntu 22.04' nodes are supported."; exit 1; }
 
 #===============================================================
 
-
-# verify necessary packages are installed
+# verify required packages are installed
 echo -e "${Y}Verifying required packages are installed...${N}"
-sudo apt install git sshpass python3-passlib python3-pip -y >/dev/null 2>&1 \
-	|| { echo -e "${R}Error installing initial packages${N}"; exit 1;}
+sudo apt install git sshpass python3-passlib python3-pip -y >/dev/null 2>&1 || { echo -e "${R}Error installing initial packages${N}"; exit 1;}
 
 # install ansible globally with pip
 echo -e "${Y}Verifying ansible is installed with pip...${N}"
@@ -69,10 +67,8 @@ sudo pip3 install --upgrade ansible >/dev/null 2>&1 || { echo -e "${R}Error: ans
 
 # cloning nvidia deepops repo
 echo -e "${Y}Cloning deepops repository...${N}"
-cd $soft_dir
-git clone https://github.com/NVIDIA/deepops.git 2>/dev/null || true
-cd $soft_dir/deepops
-git checkout tags/23.08
+cd $soft_dir		&&  git clone -q https://github.com/NVIDIA/deepops.git 2>/dev/null || true
+cd $soft_dir/deepops	&&  git checkout -q tags/23.08
 
 # configure hosts inventory    ( 1st vm slurm controller ,  2nd vm slurm gpu node )
 mkdir -p $soft_dir/deepops/config
@@ -83,7 +79,7 @@ sed -i "s/^\[slurm-node\]/\[slurm-node\]\n$worker_name ansible_host=$worker_ip/"
 
 # install nvidia drivers on the gpu worker node
 ansible-galaxy install -r roles/requirements.yml
-ansible-playbook -i config/inventory playbooks/nvidia-software/nvidia-driver.yml
+ANSIBLE_STDOUT_CALLBACK=$ansible_callback ansible-playbook -i config/inventory playbooks/nvidia-software/nvidia-driver.yml 2>/dev/null
 
 echo -e "\n${Y}Checking NVIDIA driver details on worker node (nvidia-smi)${N}"
 ssh $controller_ip type nvidia-smi 2>/dev/null \
@@ -106,20 +102,20 @@ ssh $controller_ip apt remove --purge cloud-init* -y &>/dev/null  #&&  rm -rf /e
 ssh $worker_ip apt remove --purge cloud-init* -y &>/dev/null  #&&  rm -rf /etc/cloud 2>/dev/null
 
 echo -e "\n${Y}Installing pip3 on cluster nodes... (please wait)${N}"
-ssh $controller_ip apt install -y python3-pip #>/dev/null 2>&1
-ssh $worker_ip apt install -y python3-pip #>/dev/null 2>&1
+ssh $controller_ip apt install -y python3-pip &>/dev/null
+ssh $worker_ip apt install -y python3-pip &>/dev/null
 
 #echo -e "${Y}Installing required packages on cluster nodes${N}"
 #ssh $controller_ip python3-venv git gcc g++ make tcl lua-posix liblua5.3-dev curl
 #ssh $worker_ip python3-venv git gcc g++ make tcl lua-posix liblua5.3-dev curl
 
-echo -e "${Y}Installing easybuild & lmod on cluster nodes... (please wait)${N}"
-ssh $controller_ip bash < $base_dir/$install_file
-ssh $worker_ip bash < $base_dir/$install_file
+echo -e "\n${Y}Installing EasyBuild and lmod on cluster nodes... (please wait)${N}"
+ssh $controller_ip bash < $base_dir/$install_file &>/dev/null
+ssh $worker_ip bash < $base_dir/$install_file &>/dev/null
 
-echo -e "\n${Y}Installing docker on all cluster nodes... (please wait)${N}"
-ssh $controller_ip apt install -y docker.io >/dev/null 2>&1
-ssh $worker_ip apt install -y docker.io >/dev/null 2>&1
+echo -e "\n${Y}Installing Docker on all cluster nodes... (please wait)${N}"
+ssh $controller_ip apt install -y docker.io &>/dev/null
+ssh $worker_ip apt install -y docker.io &>/dev/null
 
 # fix deprecated syntax in playbooks & roles
 echo -e "${Y}\nFixing yaml playbooks and roles...${N}"
@@ -163,12 +159,12 @@ sed -i '/^-.*lmod.yml/,/slurm_install_lmod/ s/^/#/' playbooks/slurm-cluster.yml
 
 
 echo -e "\n${Y}Installing Slurm cluster...${N}"
-ansible-playbook playbooks/slurm-cluster.yml \
+ANSIBLE_STDOUT_CALLBACK=$ansible_callback ansible-playbook playbooks/slurm-cluster.yml \
 	-l slurm-cluster \
 	-e slurm_enable_nfs_client_nodes=false \
 	-e slurm_enable_singularity=false \
 	-e slurm_install_enroot=true \
-	-e slurm_install_pyxis=true
+	-e slurm_install_pyxis=true 2>/dev/null
 sleep 4
 
 
@@ -178,12 +174,13 @@ if ssh $controller_ip type nvidia-smi &>/dev/null; then
 fi
 
 echo -e "\n${Y}Slurm Cluster Settings${N}"
+echo -e "─────────────────────────────────────────"
 echo "Cluster Name:      $(ssh $controller_ip scontrol show config | grep -i '^clustername' | awk '{print $3}')"
 echo "Slurm Version:     $(ssh $controller_ip scontrol show config | grep -i '^slurm_version' | awk '{print $3}')"
 echo "Scheduler Type:    $(ssh $controller_ip scontrol show config | grep -i '^schedulertype' | awk '{print $3}')"
 echo "Config File:       $(ssh $controller_ip scontrol show config | grep -i '^slurm_conf' | awk '{print $3}')"
 echo -e "\nCluster Nodes:"
 ssh $controller_ip "sinfo -N -h -o '  - %N (%T, %c cores, %m MB, %G)'"
-echo "------------------------------------------"
-echo -e "\n${G}Done.${N}"
+echo -e "─────────────────────────────────────────\n"
+echo -e "${G}Done.${N}"
 

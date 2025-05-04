@@ -28,10 +28,10 @@ ansible_whitelist="timer,timestamp,log_plays"
 ansible_log_path="/var/log/ansible.log"
 
 # Cluster nodes (set manually)
-controller_name='vm1'
-controller_ip='192.168.100.242'
-worker_name='vm2'
-worker_ip='192.168.100.188'
+controller_name='CHSLM01'
+controller_ip='192.168.76.33'
+worker_name='CHGPU01'
+worker_ip='192.168.76.34'
 
 echo -e "\n${Y}Confirm the following configuration:${N}"
 echo -e "─────────────────────────────────────────"
@@ -80,8 +80,11 @@ sed -i "s/^\[slurm-node\]/\[slurm-node\]\n$worker_name ansible_host=$worker_ip/"
 #echo -e "ansible_user=root\nansible_ssh_private_key_file=/root/.ssh/id_rsa\nregistry_setup=false" >> $soft_dir/deepops/config/inventory
 
 # install nvidia drivers on the gpu worker node
-ansible-galaxy install -r roles/requirements.yml >/dev/null
-ANSIBLE_STDOUT_CALLBACK=$ansible_callback ansible-playbook -i config/inventory playbooks/nvidia-software/nvidia-driver.yml >/dev/null
+ansible-galaxy install -r roles/requirements.yml
+ANSIBLE_STDOUT_CALLBACK=$ansible_callback \
+ANSIBLE_CALLBACK_WHITELIST=$ansible_whitelist \
+ANSIBLE_LOG_PATH=$ansible_log_path \
+ansible-playbook -i config/inventory playbooks/nvidia-software/nvidia-driver.yml 2>/dev/null
 
 echo -e "${Y}Checking NVIDIA driver details on worker node (nvidia-smi)${N}"
 ssh $controller_ip type nvidia-smi 2>/dev/null \

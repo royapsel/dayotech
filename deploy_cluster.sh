@@ -1,13 +1,13 @@
 #!/bin/bash
 
-#===============================================================
 #
 # Metadata
 # Author: Roy Apsel
 # Version: 1.0
-# Description: Deploy slurm cluster with deepops repository
-#
-#===============================================================
+# Description: Deploy slurm cluster with Deepops repo on Ubuntu 22.04 nodes.
+
+#===============================================================================================================#
+
 
 # Color codes: (white, green, red, yellow, none)
 W='\033[1;37m'; G='\033[0;32m'; R='\033[0;31m'; Y='\033[0;33m'; N='\033[0m';
@@ -27,10 +27,10 @@ ansible_callback="dense"
 ansible_whitelist="timer,profile_tasks,log_plays"
 
 # Cluster nodes (set manually)
-controller_name='vm1'
-controller_ip='192.168.100.242'
-worker_name='vm2'
-worker_ip='192.168.100.188'
+controller_name='CHSLM01'
+controller_ip='192.168.76.33'
+worker_name='CHGPU01'
+worker_ip='192.168.76.34'
 
 echo -e "\n${Y}Confirm the following configuration:${N}"
 echo -e "─────────────────────────────────────────"
@@ -63,11 +63,11 @@ echo -e "${Y}Verifying required packages are installed...${N}"
 sudo apt install git sshpass python3-passlib python3-pip -y >/dev/null 2>&1 || { echo -e "${R}Error installing initial packages${N}"; exit 1;}
 
 # install ansible globally with pip
-echo -e "${Y}Verifying ansible is installed with pip...${N}"
+echo -e "${Y}Verifying Ansible is installed with pip...${N}"
 sudo pip3 install --upgrade ansible >/dev/null 2>&1 || { echo -e "${R}Error: ansible installation failed${N}"; exit 1; }
 
 # cloning nvidia deepops repo
-echo -e "${Y}Cloning deepops repository...${N}"
+echo -e "${Y}Cloning Deepops repository...${N}"
 cd $soft_dir		&&  git clone -q https://github.com/NVIDIA/deepops.git 2>/dev/null || true
 cd $soft_dir/deepops	&&  git checkout -q tags/23.08
 
@@ -82,7 +82,7 @@ sed -i "s/^\[slurm-node\]/\[slurm-node\]\n$worker_name ansible_host=$worker_ip/"
 ansible-galaxy install -r roles/requirements.yml >/dev/null
 ANSIBLE_STDOUT_CALLBACK=$ansible_callback ansible-playbook -i config/inventory playbooks/nvidia-software/nvidia-driver.yml 2>/dev/null
 
-echo -e "\n${Y}Checking NVIDIA driver details on worker node (nvidia-smi)${N}"
+echo -e "${Y}Checking NVIDIA driver details on worker node (nvidia-smi)${N}"
 ssh $controller_ip type nvidia-smi 2>/dev/null \
 	&& ssh $controller_ip nvidia-smi \
 	|| echo -e "No GPU on worker node (continuing anyway)"
@@ -102,24 +102,20 @@ apt remove --purge cloud-init* -y &>/dev/null  #&&  rm -rf /etc/cloud 2>/dev/nul
 ssh $controller_ip apt remove --purge cloud-init* -y &>/dev/null  #&&  rm -rf /etc/cloud 2>/dev/null
 ssh $worker_ip apt remove --purge cloud-init* -y &>/dev/null  #&&  rm -rf /etc/cloud 2>/dev/null
 
-echo -e "\n${Y}Installing pip3 on cluster nodes... (please wait)${N}"
+echo -e "${Y}Installing pip3 on cluster nodes... (please wait)${N}"
 ssh $controller_ip apt install -y python3-pip &>/dev/null
 ssh $worker_ip apt install -y python3-pip &>/dev/null
 
-#echo -e "${Y}Installing required packages on cluster nodes${N}"
-#ssh $controller_ip python3-venv git gcc g++ make tcl lua-posix liblua5.3-dev curl
-#ssh $worker_ip python3-venv git gcc g++ make tcl lua-posix liblua5.3-dev curl
-
-echo -e "\n${Y}Installing EasyBuild and lmod on cluster nodes... (please wait)${N}"
+echo -e "${Y}Installing EasyBuild and lmod on cluster nodes... (please wait)${N}"
 ssh $controller_ip bash < $base_dir/$install_file &>/dev/null
 ssh $worker_ip bash < $base_dir/$install_file &>/dev/null
 
-echo -e "\n${Y}Installing Docker on all cluster nodes... (please wait)${N}"
+echo -e "${Y}Installing Docker on all cluster nodes... (please wait)${N}"
 ssh $controller_ip apt install -y docker.io &>/dev/null
 ssh $worker_ip apt install -y docker.io &>/dev/null
 
 # fix deprecated syntax in playbooks & roles
-echo -e "${Y}\nFixing yaml playbooks and roles...${N}"
+echo -e "\n${Y}Fixing Deepops' Playbooks and Roles...${N}"
 sed -i 's/^- include:/- import_playbook:/' playbooks/slurm-cluster.yml
 sed -i 's/^- include:/- import_playbook:/' playbooks/container/*.yml
 sed -i 's/^- include:/- import_playbook:/' playbooks/slurm-cluster/*.yml

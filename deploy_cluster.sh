@@ -4,7 +4,7 @@
 # Metadata
 # Author: Roy Apsel
 # Version: 1.0
-# Description: Deploy slurm cluster with Deepops repo on Ubuntu 22.04 nodes.
+# Description: Deploy Slurm Cluster with Deepops repository, on Ubuntu 22.04 nodes.
 
 #===============================================================================================================#
 
@@ -24,13 +24,14 @@ soft_dir='/opt'
 base_dir="`dirname $(realpath $0)`"
 install_file="install_easybuild_lmod.sh"
 ansible_callback="dense"
-ansible_whitelist="timer,profile_tasks,log_plays"
+ansible_whitelist="timer,timestamp,log_plays"
+ansible_log_path="/var/log/ansible.log"
 
 # Cluster nodes (set manually)
-controller_name='CHSLM01'
-controller_ip='192.168.76.33'
-worker_name='CHGPU01'
-worker_ip='192.168.76.34'
+controller_name='vm1'
+controller_ip='192.168.100.242'
+worker_name='vm2'
+worker_ip='192.168.100.188'
 
 echo -e "\n${Y}Confirm the following configuration:${N}"
 echo -e "─────────────────────────────────────────"
@@ -80,7 +81,7 @@ sed -i "s/^\[slurm-node\]/\[slurm-node\]\n$worker_name ansible_host=$worker_ip/"
 
 # install nvidia drivers on the gpu worker node
 ansible-galaxy install -r roles/requirements.yml >/dev/null
-ANSIBLE_STDOUT_CALLBACK=$ansible_callback ansible-playbook -i config/inventory playbooks/nvidia-software/nvidia-driver.yml 2>/dev/null
+ANSIBLE_STDOUT_CALLBACK=$ansible_callback ansible-playbook -i config/inventory playbooks/nvidia-software/nvidia-driver.yml >/dev/null
 
 echo -e "${Y}Checking NVIDIA driver details on worker node (nvidia-smi)${N}"
 ssh $controller_ip type nvidia-smi 2>/dev/null \
@@ -158,9 +159,10 @@ sed -i '/-.*nfs-server.yml/,/slurm_enable_nfs_client_nodes/ s/^/#/' playbooks/sl
 ### set config/config.yml file here (or use -e flags) ###
 
 
-echo -e "\n${Y}Installing Slurm Cluster (can take a while...)${N}"
+echo -e "\n${Y}Building Slurm Cluster (can take a while...)${N}"
 ANSIBLE_STDOUT_CALLBACK=$ansible_callback \
 ANSIBLE_CALLBACK_WHITELIST=$ansible_whitelist \
+ANSIBLE_LOG_PATH=$ansible_log_path \
 ansible-playbook playbooks/slurm-cluster.yml \
 	-l slurm-cluster \
 	-e slurm_enable_singularity=false \

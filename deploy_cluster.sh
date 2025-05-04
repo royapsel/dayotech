@@ -4,10 +4,9 @@
 # Metadata
 # Author: Roy Apsel
 # Version: 1.0
-# Description: Deploy Slurm Cluster with Deepops repository, on Ubuntu 22.04 nodes.
+# Description: Deploy "Slurm Cluster" on target Ubuntu 22.04 nodes, with NVIDIA Deepops repository.
 
 #===============================================================================================================#
-
 
 # Color codes: (white, green, red, yellow, none)
 W='\033[1;37m'; G='\033[0;32m'; R='\033[0;31m'; Y='\033[0;33m'; N='\033[0m';
@@ -29,9 +28,9 @@ ansible_log_path="/var/log/ansible.log"
 
 # Cluster nodes (set manually)
 controller_name='CHSLM01'
-controller_ip='192.168.76.33'
+controller_ip='192.168.100.242'
 worker_name='CHGPU01'
-worker_ip='192.168.76.34'
+worker_ip='192.168.100.188'
 
 echo -e "\n${Y}Confirm the following configuration:${N}"
 echo -e "─────────────────────────────────────────"
@@ -55,6 +54,12 @@ test "$(ssh $worker_ip "echo \$UID")" == "0" || { echo -e "Check ssh connection 
 # Confirm nodes running on Ubunuu 22.04
 ssh $controller_ip "grep -q 'Ubuntu 22.04' /etc/os-release" || { echo -e "Only 'Ubuntu 22.04' nodes are supported."; exit 1; }
 ssh $worker_ip "grep -q 'Ubuntu 22.04' /etc/os-release" || { echo -e "Only 'Ubuntu 22.04' nodes are supported."; exit 1; }
+
+# Refresh local cache and upgrade pending packages on cluster nodes
+ssh $controller_ip apt update -y 2>/dev/null || { echo -e "Failed to update local apt cache ($controller_name)"; exit 1; }
+#ssh $controller_ip apt full-upgrade -y 2>/dev/null || { echo -e "Failed to upgrade apt packages ($controller_name)"; exit 1; }
+ssh $worker_ip apt update -y 2>/dev/null || { echo -e "Failed to update local apt cache ($worker_name)"; exit 1; }
+#ssh $worker_ip apt full-upgrade -y 2>/dev/null || { echo -e "Failed to upgrade apt packages ($worker_name)"; exit 1; }
 
 #===============================================================================================================#
 
@@ -174,18 +179,20 @@ ansible-playbook playbooks/slurm-cluster.yml \
 sleep 4
 
 
-if ssh $controller_ip type nvidia-smi &>/dev/null; then
+# show gpu driver stats (if gpu exists)
+if ssh $worker_ip type nvidia-smi &>/dev/null; then
 	echo -e "${Y}\nTesting:${N} \"srun -N 1 -G 1 nvidia-smi\"\n"
-	ssh $controller_ip srun -N 1 -G 1 nvidia-smi
+	ssh $worker_ip srun -N 1 -G 1 nvidia-smi
 fi
 
+# show config summary with scontrol
 echo -e "\n${Y}Slurm Cluster Settings${N}"
 echo -e "─────────────────────────────────────────"
 echo "Cluster Name:      $(ssh $controller_ip scontrol show config | grep -i '^clustername' | awk '{print $3}')"
 echo "Slurm Version:     $(ssh $controller_ip scontrol show config | grep -i '^slurm_version' | awk '{print $3}')"
 echo "Scheduler Type:    $(ssh $controller_ip scontrol show config | grep -i '^schedulertype' | awk '{print $3}')"
 echo "Config File:       $(ssh $controller_ip scontrol show config | grep -i '^slurm_conf' | awk '{print $3}')"
-echo -e "\nCluster Nodes:"
+echo -e "\nCompute Nodes:"
 ssh $controller_ip "sinfo -N -h -o '  - %N (%T, %c cores, %m MB, %G)'"
 echo -e "─────────────────────────────────────────\n"
 echo -e "${G}Done.${N}"

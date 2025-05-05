@@ -119,8 +119,8 @@ ssh $controller_ip apt install -y python3-pip &>/dev/null
 ssh $worker_ip apt install -y python3-pip &>/dev/null
 
 echo -e "${Y}Installing EasyBuild and lmod on cluster nodes... (please wait)${N}"
-ssh $controller_ip "soft_dir='$soft_dir' bash -s" < $base_dir/$install_file #&>/dev/null
-ssh $worker_ip "soft_dir='$soft_dir' bash -s" < $base_dir/$install_file #&>/dev/null
+ssh $controller_ip "soft_dir='$soft_dir' bash -s" < $base_dir/$install_file &>/dev/null
+ssh $worker_ip "soft_dir='$soft_dir' bash -s" < $base_dir/$install_file &>/dev/null
 
 echo -e "${Y}Installing Docker on cluster nodes... (please wait)${N}"
 ssh $controller_ip apt install -y docker.io &>/dev/null

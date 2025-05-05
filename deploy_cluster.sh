@@ -18,7 +18,7 @@ trap 'error_handler $LINENO' ERR && set -e
 # Verify running as root (required)
 test ! "$UID" == 0 && { echo -e "Must run as root."; exit 1; }
 
-# Variables (initial)
+# Variables (initial & default)
 soft_dir='/opt'
 base_dir="`dirname $(realpath $0)`"
 
@@ -57,7 +57,7 @@ ssh $controller_ip "grep -q 'Ubuntu 22.04' /etc/os-release" || { echo -e "Only '
 ssh $worker_ip "grep -q 'Ubuntu 22.04' /etc/os-release" || { echo -e "Only 'Ubuntu 22.04' nodes are supported."; exit 1; }
 
 # refresh local cache on cluster nodes
-echo -e "${Y}Refreshing local respository cache...${N}"
+echo -e "${Y}Refreshing local repository cache...${N}"
 ssh $controller_ip apt update -y >/dev/null 2>&1 || { echo -e "Failed to update local apt cache ($controller_name)"; exit 1; }
 ssh $worker_ip apt update -y >/dev/null 2>&1 || { echo -e "Failed to update local apt cache ($worker_name)"; exit 1; }
 
@@ -90,7 +90,7 @@ sed -i "s/^\[slurm-node\]/\[slurm-node\]\n$worker_name ansible_host=$worker_ip/"
 #echo -e "ansible_user=root\nansible_ssh_private_key_file=/root/.ssh/id_rsa\nregistry_setup=false" >> $soft_dir/deepops/config/inventory
 
 # install nvidia drivers on the gpu worker node
-ansible-galaxy install -r roles/requirements.yml
+ansible-galaxy install -r roles/requirements.yml #2>/dev/null
 ANSIBLE_STDOUT_CALLBACK=$ansible_callback \
 ANSIBLE_CALLBACK_WHITELIST=$ansible_whitelist \
 ANSIBLE_LOG_PATH=$ansible_log_path \

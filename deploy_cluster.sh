@@ -21,27 +21,28 @@ test ! "$UID" == 0 && { echo -e "Must run as root."; exit 1; }
 # Variables (initial)
 soft_dir='/opt'
 base_dir="`dirname $(realpath $0)`"
+
 install_file="install_easybuild_lmod.sh"
 ansible_callback="dense"
 ansible_whitelist="timer,timestamp,log_plays"
 ansible_log_path="/var/log/ansible.log"
 
-# Cluster nodes (set manually)
 controller_name='CHSLM01'
 controller_ip='192.168.100.242'
 worker_name='CHGPU01'
 worker_ip='192.168.100.188'
 
-echo -e "\n${Y}Confirm the following configuration:${N}"
-echo -e "─────────────────────────────────────────"
-echo -e "Controller Hostname:      $controller_name"
-echo -e "Controler IP:             $controller_ip  "
-echo -e "Worker Hostname:          $worker_name    "
-echo -e "Worker IP:                $worker_ip      "
-echo -e "Software Install Dir:     $soft_dir       "
-echo -e "─────────────────────────────────────────"
-read -p "Continue? [y/n]: " confirm  &&  [[ "$confirm" =~ ^[Yy]$ ]] || exit 1
-
+if test ! "$1" == "-y"; then
+	echo -e "\n${Y}Confirm the following configuration:${N}"
+	echo -e "─────────────────────────────────────────"
+	echo -e "Controller Hostname:      $controller_name"
+	echo -e "Controler IP:             $controller_ip  "
+	echo -e "Worker Hostname:          $worker_name    "
+	echo -e "Worker IP:                $worker_ip      "
+	echo -e "Software Install Dir:     $soft_dir       "
+	echo -e "─────────────────────────────────────────"
+	read -p "Continue? [y/n]: " confirm  &&  test "$confirm" == "y" || exit 1
+fi
 
 # Cluster ping response test
 ping -c 1 $controller_ip >/dev/null 2>&1 || { echo -e "Cannot ping host $controller_ip, check manually."; exit 1; }
@@ -102,9 +103,7 @@ ssh $worker_ip type nvidia-smi 2>/dev/null \
 	
 echo "" && sleep 4
 
-
-#echo -e "exiting before slurm cluster installation"
-#exit 1
+#echo -e "exiting before slurm cluster installation && exit 1" 
 
 
 #===============================================================================================================#
@@ -120,8 +119,8 @@ ssh $controller_ip apt install -y python3-pip &>/dev/null
 ssh $worker_ip apt install -y python3-pip &>/dev/null
 
 echo -e "${Y}Installing EasyBuild and lmod on cluster nodes... (please wait)${N}"
-ssh $controller_ip bash < $base_dir/$install_file &>/dev/null
-ssh $worker_ip bash < $base_dir/$install_file &>/dev/null
+ssh $controller_ip "soft_dir='$soft_dir' bash -s" < $base_dir/$install_file #&>/dev/null
+ssh $worker_ip "soft_dir='$soft_dir' bash -s" < $base_dir/$install_file #&>/dev/null
 
 echo -e "${Y}Installing Docker on cluster nodes... (please wait)${N}"
 ssh $controller_ip apt install -y docker.io &>/dev/null

@@ -55,10 +55,14 @@ test "$(ssh $worker_ip "echo \$UID")" == "0" || { echo -e "Check ssh connection 
 ssh $controller_ip "grep -q 'Ubuntu 22.04' /etc/os-release" || { echo -e "Only 'Ubuntu 22.04' nodes are supported."; exit 1; }
 ssh $worker_ip "grep -q 'Ubuntu 22.04' /etc/os-release" || { echo -e "Only 'Ubuntu 22.04' nodes are supported."; exit 1; }
 
-# Refresh local cache and upgrade pending packages on cluster nodes
-ssh $controller_ip apt update -y 2>/dev/null || { echo -e "Failed to update local apt cache ($controller_name)"; exit 1; }
+# refresh local cache on cluster nodes
+echo -e "${Y}Refreshing local respository cache...${N}"
+ssh $controller_ip apt update -y >/dev/null 2>&1 || { echo -e "Failed to update local apt cache ($controller_name)"; exit 1; }
+ssh $worker_ip apt update -y >/dev/null 2>&1 || { echo -e "Failed to update local apt cache ($worker_name)"; exit 1; }
+
+# upgrade pending packages on cluster nodes
+#echo -e "${Y}Upgrading system packages...${N}"
 #ssh $controller_ip apt full-upgrade -y 2>/dev/null || { echo -e "Failed to upgrade apt packages ($controller_name)"; exit 1; }
-ssh $worker_ip apt update -y 2>/dev/null || { echo -e "Failed to update local apt cache ($worker_name)"; exit 1; }
 #ssh $worker_ip apt full-upgrade -y 2>/dev/null || { echo -e "Failed to upgrade apt packages ($worker_name)"; exit 1; }
 
 #===============================================================================================================#
@@ -92,8 +96,8 @@ ANSIBLE_LOG_PATH=$ansible_log_path \
 ansible-playbook -i config/inventory playbooks/nvidia-software/nvidia-driver.yml 2>/dev/null
 
 echo -e "${Y}Checking NVIDIA driver details on worker node (nvidia-smi)${N}"
-ssh $controller_ip type nvidia-smi 2>/dev/null \
-	&& ssh $controller_ip nvidia-smi \
+ssh $worker_ip type nvidia-smi 2>/dev/null \
+	&& ssh $worker_ip nvidia-smi \
 	|| echo -e "No GPU on worker node (continuing anyway)"
 	
 echo "" && sleep 4
@@ -119,7 +123,7 @@ echo -e "${Y}Installing EasyBuild and lmod on cluster nodes... (please wait)${N}
 ssh $controller_ip bash < $base_dir/$install_file &>/dev/null
 ssh $worker_ip bash < $base_dir/$install_file &>/dev/null
 
-echo -e "${Y}Installing Docker on all cluster nodes... (please wait)${N}"
+echo -e "${Y}Installing Docker on cluster nodes... (please wait)${N}"
 ssh $controller_ip apt install -y docker.io &>/dev/null
 ssh $worker_ip apt install -y docker.io &>/dev/null
 

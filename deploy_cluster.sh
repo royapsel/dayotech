@@ -36,7 +36,7 @@ if test ! "$1" == "-y"; then
 	echo -e "\n${Y}Confirm the following configuration:${N}"
 	echo -e "─────────────────────────────────────────"
 	echo -e "Controller Hostname:      $controller_name"
-	echo -e "Controler IP:             $controller_ip  "
+	echo -e "Controller IP:            $controller_ip  "
 	echo -e "Worker Hostname:          $worker_name    "
 	echo -e "Worker IP:                $worker_ip      "
 	echo -e "Software Install Dir:     $soft_dir       "
